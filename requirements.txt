@@ -1,0 +1,2 @@
+PySimpleGUI==4.60.5
+python-vlc==3.0.18122

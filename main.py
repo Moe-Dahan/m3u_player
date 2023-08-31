@@ -100,7 +100,7 @@ def second_gui(channels):
     current_row = []
 
     for name, url in channels.items():
-        button = [sg.Button(name, key=name)]
+        button = [sg.Text(name, key=name, enable_events=True, text_color='blue)]
         current_row.append(button)
         if len(current_row) == max_buttons_per_row:
             channel_buttons.append(current_row)

@@ -1,3 +1,5 @@
+m3u ZIP File Contains a .exe built with cx_freeze
+
 This Python script is a simple m3u playlist player built using the PySimpleGUI library and VLC media player. It allows you to load and play m3u playlists from local files or URLs. You can also give each playlist a name for easy identification.
 
 Dependencies

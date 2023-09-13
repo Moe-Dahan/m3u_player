@@ -2,12 +2,40 @@ import PySimpleGUI as sg
 from tkinter import filedialog
 import vlc
 import requests
+import os
+import json
 
 
-sg.theme('SystemDefault')
+sg.theme("SystemDefaultForReal")
+
+playlist_data = {}
+playlist_path = 'm3uLinks.json'
+        
 screen_width, screen_height = sg.Window.get_screen_size()
 window_width, window_height = 400, 100
-''' play video function with small button as a added gui to stop player '''
+
+def read_existing_playlist(playlist_path):
+    if os.path.exists(playlist_path):
+        with open(playlist_path, 'r') as file:
+            existing_data = json.load(file)
+        return existing_data
+    return {}
+
+def open_playlist(select_file, playlistName):
+    if select_file and playlistName:
+        existing_playlist = read_existing_playlist(playlist_path)
+        existing_playlist[playlistName] = select_file
+        
+        with open(playlist_path, 'w') as file:
+            json.dump(existing_playlist, file)
+
+        names_links = [sg.Text(playlistName, key=playlistName, enable_events=True)]
+        MainGui.current_row.append(names_links)
+        
+        channel_loader = ChannelLoader()
+        channel_loader.load_channels(select_file)
+        second_gui(channel_loader.channels, player=play_video)
+
 def play_video(m3u_url, window):
     instance = vlc.Instance()
     player = instance.media_player_new()
@@ -15,86 +43,86 @@ def play_video(m3u_url, window):
     player.set_media(media)
     player.set_hwnd(window['-VIDEO-'].Widget.winfo_id())
     player.play()
-    
-    layout = [
-        [sg.Button("STOP", key="stop", button_color='red', font=('Arial', 7, 'bold'))]
-    ]
-
-    window = sg.Window("", layout,  no_titlebar=True, grab_anywhere=True, finalize=True, keep_on_top=True)
-
-    ''' places the stop button to the top right side of screen '''
-    window_x = int(screen_width//2 + 290) - window_width//2
-    window_y = 25
-    window.move(window_x, window_y)
 
     while True:
         event, values = window.read()
         if event == sg.WIN_CLOSED or event == 'stop':
             player.stop()
             player.release()
-            window.close()
             break
 
-''' loads the channels through a m3u file '''
 class ChannelLoader:
     def __init__(self):
         self.channels = {}
+
     def load_channels(self, select_file):
         encodings_to_try = ['utf-8', 'iso-8859-1', 'cp1252']
-        ''' checks the encoding type from encodings_to_try list '''
         for encoding in encodings_to_try:
             try:
                 with open(select_file, 'r', encoding=encoding) as file:
                     lines = file.readlines()
-            except FileNotFoundError: # if its not a file will load url
-                    lines = select_file.splitlines()
+
+            except FileNotFoundError:
+                lines = select_file.splitlines()
+
             name = url = None
             for line in lines:
                 line = line.strip()
+
                 if line.startswith('#EXTINF:'):
                     name = line.split(',', 1)[1]
+
                 elif line.startswith('http'):
                     url = line
                     if name and url:
                         self.channels[name] = url
                         name = url = None
 
-''' main gui class '''
 class MainGui:
-    def layout():
+    current_row = []
+    if os.path.isfile(playlist_path):
+        with open(playlist_path, 'r') as file:
+            playlist = json.load(file)
+        playlist_names = playlist.keys()
+        for names in playlist_names:
+            names_links = [sg.Text(names, key=names, enable_events=True)]
+            current_row.append(names_links)
 
+    elif FileNotFoundError:
+        pass
+        
+    def layout():
         layout_frame = [
-            [sg.Menu([['&PLAYLIST', ['&Open Playlist', '&Load from url']]])]
+            [sg.Menu([['&PLAYLIST', ['&Open Playlist', '&Load from url']]])],
+            [sg.Frame("", layout=MainGui.current_row, key='playlist_loaded_names')]
         ]
         return layout_frame
     
     def run():
-
-        window = sg.Window("m3u player", MainGui.layout(), resizable=True, size=(400, 100), icon='videofolder_99361.ico')
+        window = sg.Window("m3u player", MainGui.layout(), resizable=True, size=(400, 400), icon='videofolder_99361.ico')
 
         while True:
             event, values = window.read(timeout=100)
             if event == sg.WIN_CLOSED:
                 break
+
+            if event in MainGui.playlist_names:
+                select_file = MainGui.playlist.get(event)
+                open_playlist(select_file=select_file, playlistName=event)
+            
             if event == 'Open Playlist':
-                window.close()
-                filetypes = [("M3U files", "*.m3u"), ("All files", "*.*")]
-                select_file = filedialog.askopenfilename(filetypes=filetypes)
-                if select_file:
-                    channel_loader = ChannelLoader()
-                    channel_loader.load_channels(select_file)
-                    second_gui(channel_loader.channels)
+                select_file = filedialog.askopenfilename(filetypes=[("M3U files", "*.m3u"), ("All files", "*.*")], icon='videofolder_99361.ico')
+                playlistName = sg.popup_get_text('Enter your name:', icon='videofolder_99361.ico')
+                open_playlist(select_file, playlistName)
+                    
             elif event == 'Load from url':
-                window.close()
                 url_to_grab = sg.popup_get_text("Enter URL for Playlist", icon='videofolder_99361.ico')
+                playlistName = sg.popup_get_text('Enter your name:', icon='videofolder_99361.ico')
                 if url_to_grab:
                     url_content = requests.get(url_to_grab).content.decode('utf-8')
-                channel_loader = ChannelLoader()
-                channel_loader.load_channels(select_file=url_content)
-                second_gui(channel_loader.channels)
+                open_playlist(select_file=url_content, playlistName=playlistName)
 
-''' once playlist is loaded and channels load play channel from this gui '''
-def second_gui(channels):
+def second_gui(channels, player):
     for i in range(0, len(channels)):
         max_buttons_per_row = i//1
     channel_buttons = []
@@ -119,7 +147,8 @@ def second_gui(channels):
     ]
     
     video_frame = [
-        [sg.Column(layout=[[]], key='-VIDEO-', size=(screen_width, 900), expand_x=True, expand_y=True)],
+        [sg.Button("STOP", key="stop", button_color=('white', 'red'), font=("Arial", 9, 'bold'))],
+        [sg.Column(layout=[[]], key='-VIDEO-', size=(screen_width, screen_height), expand_x=True, expand_y=True)],
     ]
 
     lay_frame = [
@@ -127,7 +156,7 @@ def second_gui(channels):
          sg.Column(layout=video_frame, expand_x=True, expand_y=True)]
     ]
 
-    window = sg.Window("Loaded Channels", lay_frame, size=(700, 500), resizable=True, icon='videofolder_99361.ico', finalize=True)
+    window = sg.Window("Loaded Channels", lay_frame, size=(screen_width, screen_height), resizable=True, icon='videofolder_99361.ico', finalize=True)
 
     while True:
         event, values = window.read(timeout=100)
@@ -136,7 +165,7 @@ def second_gui(channels):
         if event in channels:
             m3u_url = channels[event]
             play_video(m3u_url, window=window)
-            
+
     window.close()
 
 if __name__ == '__main__':

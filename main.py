@@ -105,7 +105,13 @@ class MainGui:
             event, values = window.read(timeout=100)
             if event == sg.WIN_CLOSED:
                 break
-
+            try:
+                if event in MainGui.playlist_names:
+                        select_file = MainGui.playlist.get(event)
+                        open_playlist(select_file=select_file, playlistName=event)
+            except AttributeError:
+                pass
+                    
             if event in MainGui.playlist_names:
                 select_file = MainGui.playlist.get(event)
                 open_playlist(select_file=select_file, playlistName=event)
